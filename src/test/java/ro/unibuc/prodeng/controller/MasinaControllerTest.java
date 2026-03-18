@@ -63,7 +63,7 @@ public class MasinaControllerTest {
 
         when(masinaService.createMasina(any(MasinaRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/masini")
+        mockMvc.perform(post("/api/masini")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -78,7 +78,7 @@ public class MasinaControllerTest {
         when(masinaService.createMasina(any(MasinaRequest.class)))
                 .thenThrow(new IllegalArgumentException("Pretul trebuie sa fie strict mai mare decat 0"));
 
-        mockMvc.perform(post("/masini")
+        mockMvc.perform(post("/api/masini")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -92,7 +92,7 @@ public class MasinaControllerTest {
         when(masinaService.createMasina(any(MasinaRequest.class)))
                 .thenThrow(new DuplicateMasinaException("O masina cu aceeasi marca, model si an exista deja"));
 
-        mockMvc.perform(post("/masini")
+        mockMvc.perform(post("/api/masini")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())

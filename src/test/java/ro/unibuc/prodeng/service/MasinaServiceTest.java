@@ -171,7 +171,7 @@ public class MasinaServiceTest {
             masinaService.createMasina(req);
         });
         
-        assertEquals("O masina din anul curent nu poate avea peste 1000 km", ex.getMessage());
+        assertEquals("O masina din anul curent sau viitor nu poate avea peste 1000 km", ex.getMessage());
     }
 
     @Test
@@ -190,7 +190,7 @@ public class MasinaServiceTest {
 
     @Test
     void testDeleteMasinaStatusRezervat() {
-        Masina masina = new Masina("1", "Dacia", "Logan", 2020, 10000.0, 50000, "Benzina", 90, MasinaStatus.REZERVAT, "a@b.ro");
+        Masina masina = new Masina("1", "Dacia", "Logan", 2020, 10000.0, 50000, "Benzina", 90, MasinaStatus.RESERVAT, "a@b.ro");
         
         when(masinaRepository.findById("1")).thenReturn(Optional.of(masina));
         

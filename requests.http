@@ -105,11 +105,11 @@ DELETE http://localhost:8080/api/users/{{createUser.response.body.id}}
 # ==========================================
 
 ### 1. GET - Listarea tuturor masinilor
-GET http://localhost:8080/masini
+GET http://localhost:8080/api/masini
 
 ### 2. POST - Creare masina cu succes (Happy Path)
 # @name createMasina
-POST http://localhost:8080/masini
+POST http://localhost:8080/api/masini
 Content-Type: application/json
 
 {
@@ -120,10 +120,10 @@ Content-Type: application/json
 }
 
 ### 3. GET - Cautarea unei masini dupa ID
-GET http://localhost:8080/masini/{{createMasina.response.body.id}}
+GET http://localhost:8080/api/masini/{{createMasina.response.body.id}}
 
 ### 4. POST - Eroare de an invalid (Prea vechi)
-POST http://localhost:8080/masini
+POST http://localhost:8080/api/masini
 Content-Type: application/json
 
 {
@@ -134,7 +134,7 @@ Content-Type: application/json
 }
 
 ### 5. POST - Eroare de pret negativ
-POST http://localhost:8080/masini
+POST http://localhost:8080/api/masini
 Content-Type: application/json
 
 {
@@ -145,7 +145,7 @@ Content-Type: application/json
 }
 
 ### 6. POST - Eroare de duplicat (Rulati din nou testul 2 si apoi acest test)
-POST http://localhost:8080/masini
+POST http://localhost:8080/api/masini
 Content-Type: application/json
 
 {
@@ -156,4 +156,4 @@ Content-Type: application/json
 }
 
 ### 7. DELETE - Stergerea unei masini dupa ID
-DELETE http://localhost:8080/masini/{{createMasina.response.body.id}}
+DELETE http://localhost:8080/api/masini/{{createMasina.response.body.id}}
