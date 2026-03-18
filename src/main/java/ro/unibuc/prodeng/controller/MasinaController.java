@@ -15,7 +15,7 @@ import ro.unibuc.prodeng.response.MasinaResponse;
 import ro.unibuc.prodeng.service.MasinaService;
 
 @RestController
-@RequestMapping("/masini")
+@RequestMapping("/api/masini")
 public class MasinaController {
 
     @Autowired

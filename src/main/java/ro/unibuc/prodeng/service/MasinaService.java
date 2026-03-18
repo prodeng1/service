@@ -93,7 +93,7 @@ public class MasinaService {
     public void deleteMasina(String id) throws EntityNotFoundException {
         Masina masina = masinaRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(id));
-        if (masina.getStatus() == MasinaStatus.REZERVAT) {
+        if (masina.getStatus() == MasinaStatus.RESERVAT) {
             throw new IllegalArgumentException("Nu puteti sterge o masina care este rezervata");
         }
         masinaRepository.deleteById(id);
@@ -138,8 +138,8 @@ public class MasinaService {
             throw new IllegalArgumentException("Anul fabricatiei este invalid");
         }
 
-        if (request.getAn() == currentYear && request.getKilometri() > 1000) {
-            throw new IllegalArgumentException("O masina din anul curent nu poate avea peste 1000 km");
+        if (request.getAn() >= currentYear && request.getKilometri() > 1000) {
+            throw new IllegalArgumentException("O masina din anul curent sau viitor nu poate avea peste 1000 km");
         }
 
         if (request.getMarca() == null || request.getMarca().trim().isEmpty()) {
