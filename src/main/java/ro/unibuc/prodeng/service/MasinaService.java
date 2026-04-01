@@ -11,6 +11,7 @@ import ro.unibuc.prodeng.exception.EntityNotFoundException;
 import ro.unibuc.prodeng.model.Masina;
 import ro.unibuc.prodeng.model.MasinaStatus;
 import ro.unibuc.prodeng.repository.MasinaRepository;
+import ro.unibuc.prodeng.repository.SaleRepository;
 import ro.unibuc.prodeng.request.MasinaRequest;
 import ro.unibuc.prodeng.request.UpdateMasinaStatusRequest;
 import ro.unibuc.prodeng.response.MasinaResponse;
@@ -21,6 +22,9 @@ public class MasinaService {
 
     @Autowired
     private MasinaRepository masinaRepository;
+
+    @Autowired
+    private SaleRepository saleRepository;
 
     public List<MasinaResponse> getAllMasini() {
         return masinaRepository.findAll().stream()
@@ -54,6 +58,10 @@ public class MasinaService {
     }
 
     public MasinaResponse updateMasina(String id, MasinaRequest request) throws EntityNotFoundException {
+        if (saleRepository.existsByMasinaId(id)) {
+            throw new IllegalArgumentException("Masina a fost vanduta si nu mai poate fi modificata");
+        }
+
         validateMasinaRequest(request, id);
 
         Masina masina = masinaRepository.findById(id)
@@ -91,9 +99,13 @@ public class MasinaService {
     }
 
     public void deleteMasina(String id) throws EntityNotFoundException {
+        if (saleRepository.existsByMasinaId(id)) {
+            throw new IllegalArgumentException("Masina a fost vanduta si nu mai poate fi stearsa");
+        }
+
         Masina masina = masinaRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException(id));
-        if (masina.getStatus() == MasinaStatus.RESERVAT) {
+        if (masina.getStatus() == MasinaStatus.REZERVAT) {
             throw new IllegalArgumentException("Nu puteti sterge o masina care este rezervata");
         }
         masinaRepository.deleteById(id);
