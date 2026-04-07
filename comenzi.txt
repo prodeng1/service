@@ -19,12 +19,12 @@ curl -X GET http://localhost:8080/api/masini
 // Cautarea unei masini specifice dupa ID (inlocuieste cu ID-ul real de la POST)
 curl -X GET http://localhost:8080/api/masini/69b9cf93d83e1510f5a99652
 
-// Actualizare status in RESERVAT (pentru testul de stergere) (inlocuieste ID)
+// Actualizare status in REZERVAT (pentru testul de stergere) (inlocuieste ID)
 curl -X PATCH http://localhost:8080/api/masini/69b9cf93d83e1510f5a99652/status \
 -H "Content-Type: application/json" \
--d '{"status":"RESERVAT"}'
+-d '{"status":"REZERVAT"}'
 
-// Incearca stergerea unei masini RESERVATA (trebuie sa dea eroare)
+// Incearca stergerea unei masini REZERVATA (trebuie sa dea eroare)
 curl -X DELETE http://localhost:8080/api/masini/69b9cf93d83e1510f5a99652
 
 // Actualizare status in VANDUT

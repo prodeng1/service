@@ -68,16 +68,15 @@ class MasinaAndSaleIntegrationTest extends IntegrationTestBase {
 
     @Test
     void testCreateSaleAndPreventMasinaDeletion() throws Exception {
-        // Arrange
         String masinaId = createMasina("Dacia", "Logan", 2022, 10000);
         createSale(masinaId, "Ion Popescu", 9500);
 
-        // Act & Assert - Delete should fail
+        // Delete should fail
         mockMvc.perform(delete("/api/masini/" + masinaId))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Masina a fost vanduta si nu mai poate fi stearsa"));
         
-        // Act & Assert - Update should fail
+        // Update should fail
         MasinaRequest updateReq = new MasinaRequest(
             "Dacia", "Sandero", 2022, 11000, 10, "Benzina", 100, "test@example.com"
         );

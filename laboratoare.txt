@@ -1,3 +1,10 @@
+./gradlew test jacocoTestReport
+
+./start_mongo_only.sh
+
+./gradlew bootRun
+
+
 Lab 1 - Project Setup & Git Workflow
 
 Introduction and Resources
@@ -2433,3 +2440,1543 @@ Deliverables
  Tests committed and merged to main branch
  Each team member wrote tests for their features
  Pull requests show test additions
+
+Lab 5 - Integration, E2E & Performance Testing
+
+Introduction
+
+Welcome to Lab 5! You've successfully implemented your application and added unit tests. Now it's time to expand your testing strategy with integration tests, end-to-end (E2E) tests, and performance tests.
+
+While unit tests verify individual components in isolation, integration tests ensure that multiple components work together correctly. E2E tests validate entire user flows, and performance tests ensure your application can handle real-world load.
+
+Objectives
+
+Understand the difference between unit, integration, and E2E tests
+Use Testcontainers for integration testing with MongoDB
+Write integration tests for API endpoints with real database
+Implement behavior-driven development (BDD) with Cucumber
+Write feature files in Gherkin syntax
+Perform performance testing with JMeter
+Analyze performance test results
+Understand testing strategy and when to use each test type
+Prerequisites
+
+Completed Labs 1-4
+Working application with unit tests
+Test coverage >80%
+Part 1: Understanding Integration Testing
+
+Task 1.1: Unit vs Integration vs E2E Tests
+
+Comparison:
+
+Aspect	Unit Test	Integration Test	E2E Test
+Scope	Single unit (method/class)	Multiple components	Entire system
+Dependencies	Mocked	Real or containers	All real
+Speed	Very fast (ms)	Medium (seconds)	Slow (seconds to minutes)
+Database	Mocked	Real (in this project, Testcontainers)	Real
+Network	No	Sometimes	Yes
+Cost	Low	Medium	High
+Quantity	Many (IE hundreds)	Some (IE tens)	Few (IE 5-10)
+Maintenance	Easy	Medium	Hard
+When to use each:
+
+Unit Tests:
+
+Testing business logic
+Testing algorithms
+Testing utility methods
+Testing validation rules
+Fast feedback during development
+Integration Tests:
+
+Testing database operations
+Testing API endpoints with real DB
+Testing multiple components together
+Testing data persistence
+Testing transactions
+E2E Tests:
+
+Testing critical user journeys
+Testing complete workflows
+Testing system behavior
+Smoke tests for deployment
+Acceptance criteria validation
+Part 2: Setting Up Integration Tests
+
+Task 2.1: Testcontainers Dependencies
+
+Testcontainers starts real Docker containers for testing (in this project, a MongoDB database).
+
+Note in build.gradle:
+
+dependencies {
+	def testcontainersVersion = "2.0.3"
+    
+    // Integration tests - test containers dependencies
+    testImplementation "org.testcontainers:testcontainers:$testcontainersVersion"
+    testImplementation "org.testcontainers:testcontainers-mongodb:$testcontainersVersion"
+    ...
+}
+Task 2.2: Integration Test Base Class
+
+Using a base class for integration tests allows us to set up and tear down the MongoDB container only once for all tests, and to configure Spring Boot to connect to it.
+
+A main advantage of this class would be that we only need to define shared logic of all tests, such as database connections, in a single location. It will then be reusable by all inheriting tests.
+
+Note src/test/java/ro/unibuc/prodeng/IntegrationTestBase.java:
+
+package ro.unibuc.prodeng;
+
+import org.junit.jupiter.api.Tag;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.MongoDBContainer;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+/**
+ * Base class for integration tests that need a real MongoDB database.
+ * Uses Testcontainers to spin up a MongoDB instance in Docker.
+ */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureMockMvc
+@Testcontainers
+@Tag("IntegrationTest")
+public abstract class IntegrationTestBase {
+   private static final MongoDBContainer mongoDBContainer =
+           new MongoDBContainer("mongo:6.0.20")
+                   .withExposedPorts(27017)
+                   .withSharding()
+                   .withLabel("ro.unibuc.prodeng", "integration-test-mongo");
+
+   static {
+      mongoDBContainer.start();
+   }
+
+   @DynamicPropertySource
+   static void setProperties(DynamicPropertyRegistry registry) {
+      String mongoUrl = "mongodb://localhost:" + mongoDBContainer.getMappedPort(27017);
+      registry.add("mongodb.connection.url", () -> mongoUrl);
+   }
+}
+What this does:
+
+Starts a real MongoDB container before tests
+Configures Spring Boot to connect to test container
+Provides common setup for all integration tests
+Stops container after all tests complete
+Task 2.3: Gradle Configuration for Integration Tests
+
+Note in build.gradle:
+
+task testIT(type: Test) {
+	outputs.dir snippetsDir
+	outputs.upToDateWhen { false }
+
+	useJUnitPlatform {
+		includeTags "IntegrationTest"
+	}
+}
+The task testIT will thus run all tests annotated with @Tag("IntegrationTest").
+
+Usage:
+
+# Run only integration tests (slower)
+./gradlew testIT
+
+# Run only unit tests (faster)
+./gradlew test
+
+# Run unit and integration tests
+./gradlew test testIT
+Note: Since integration tests here use test containers relying on Docker, they rely on Docker to be active. Make sure Docker is running (IE on a local setup, open Docker Desktop. Codespaces will automatically start up Docker soon after container initialization). Validate by running docker ps.
+Part 3: Writing Integration Tests
+
+Task 3.1: Controller Integration Test Template
+
+Create src/test/java/ro/unibuc/prodeng/controller/UserControllerIntegrationTest.java:
+
+package ro.unibuc.prodeng.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import ro.unibuc.prodeng.IntegrationTestBase;
+import ro.unibuc.prodeng.repository.UserRepository;
+import ro.unibuc.prodeng.request.CreateUserRequest;
+
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@DisplayName("UserController Integration Tests")
+class UserControllerIntegrationTest extends IntegrationTestBase {
+
+   @Autowired
+   private MockMvc mockMvc;
+
+   @Autowired
+   private UserRepository userRepository;
+
+   @Autowired
+   private ObjectMapper objectMapper;
+
+   // clean database before each test
+   @BeforeEach
+   void cleanUp() {
+      userRepository.deleteAll();
+   }
+   
+   // tests go here
+}
+Key differences from unit tests:
+
+❌ No mocking - real components
+✅ Real database (MongoDB in Docker)
+✅ Tests actual data persistence
+✅ Tests full request/response cycle
+Task 3.2: Writing Integration Tests
+
+Write a shared test method to make test code more readable and avoid repeating logic between tests:
+
+    private String createUser(String name, String email) throws Exception {
+        CreateUserRequest request = new CreateUserRequest(name, email);
+
+        String response = mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value(name))
+                .andExpect(jsonPath("$.email").value(email))
+                .andExpect(jsonPath("$.id").exists())
+                .andReturn().getResponse().getContentAsString();
+
+        return objectMapper.readTree(response).get("id").asText();
+    }
+Then use it in tests:
+
+@Test
+void testCreateAndGetUser_validUserCreation_retrievesUserSuccessfully() throws Exception {
+   // Arrange
+   String userId = createUser("Alice", "alice@example.com");
+
+   // Act & Assert
+   mockMvc.perform(get("/api/users/" + userId))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.name").value("Alice"))
+           .andExpect(jsonPath("$.email").value("alice@example.com"));
+}
+
+@Test
+void testUpdateUserWithPut_validUserData_updatesUserSuccessfully() throws Exception {
+   // Arrange
+   String userId = createUser("Alice", "alice@example.com");
+
+   // Act & Assert
+   mockMvc.perform(put("/api/users/" + userId)
+                   .contentType(MediaType.APPLICATION_JSON)
+                   .content("{\"name\":\"Alicia\"}"))
+           .andExpect(status().isOk())
+           .andExpect(jsonPath("$.name").value("Alicia"))
+           .andExpect(jsonPath("$.email").value("alice@example.com"));
+}
+More Examples (Click to expand)
+Part 4: Behavior-Driven Development with Cucumber
+
+Task 4.1: Understanding BDD and Gherkin
+
+BDD (Behavior-Driven Development) describes system behavior in plain language that non-technical stakeholders can understand.
+
+Gherkin is the language used to write BDD scenarios.
+
+Key concepts:
+
+Feature: High-level functionality
+  Describes what the feature does
+
+Scenario: Specific test case
+  Given [initial context]
+  When [action occurs]
+  Then [expected outcome]
+  And [additional conditions]
+Example:
+
+Feature: User Management
+  As a system administrator
+  I want to manage users
+  So that I can control access to the system
+
+Scenario: Create a new user
+  Given I have user creation credentials
+  When I create a user with name "John Doe" and email "john@example.com"
+  Then the user should be saved in the system
+  And I should receive a success response
+Task 4.2: Gradle configuration for Cucumber
+
+Note in build.gradle:
+
+dependencies {
+	def cucumberVersion = "7.20.1"
+	def junitVersion = "5.11.4"
+    
+	//	E2E tests
+	runtimeOnly "org.junit.vintage:junit-vintage-engine:$junitVersion"
+	testImplementation 'org.apache.httpcomponents.client5:httpclient5:5.4.1'
+	testImplementation "io.cucumber:cucumber-core:$cucumberVersion"
+	testImplementation "io.cucumber:cucumber-java:$cucumberVersion"
+	testImplementation "io.cucumber:cucumber-junit:$cucumberVersion"
+	testImplementation "io.cucumber:cucumber-spring:$cucumberVersion"
+}
+ task testE2E() {
+	dependsOn assemble, testClasses
+	doLast {
+		javaexec {
+			mainClass.set("io.cucumber.core.cli.Main")
+			classpath = configurations.cucumberRuntime + sourceSets.main.output + sourceSets.test.output
+			args = [
+					'--plugin', 'pretty',
+					'--plugin', 'html:target/cucumber-report.html',
+					'--glue', 'ro.unibuc.prodeng.e2e',
+					'src/test/resources']
+		}
+	}
+}
+Run E2E tests with:
+
+./gradlew testE2E
+Warning: E2E test setup in this project requires the application to be running! Make sure to start your application before running Cucumber tests.
+Open build/reports/cucumber/cucumber-report.html.
+
+Cucumber report shows:
+
+Feature descriptions
+Scenario results (passed/failed)
+Step-by-step execution
+Failure details
+Execution time
+Task 4.3: Create Feature File
+
+Create src/test/resources/users.feature:
+
+@E2E
+Feature: user management
+  Scenario: client creates and retrieves users
+    When the client creates a user named "Anakin" with email anakin@jedi.org
+    Then the user response status code is 201
+    When the client creates a user named "Obi-Wan" with email obiwan@jedi.org
+    Then the user response status code is 201
+    When the client retrieves all users
+    Then the client can see at least 2 users
+
+  Scenario: client retrieves user by id
+    Given a user named "Yoda" with email yoda@jedi.org exists
+    When the client retrieves the user by id
+    Then the user response status code is 200
+    And the user has name "Yoda" and email yoda@jedi.org
+
+  Scenario: client retrieves user by email
+    Given a user named "Mace" with email mace@jedi.org exists
+    When the client retrieves the user by email mace@jedi.org
+    Then the user response status code is 200
+    And the user has name "Mace" and email mace@jedi.org
+
+  Scenario: client updates user name
+    Given a user named "Padme" with email padme@naboo.org exists
+    When the client changes the user name to "Queen Amidala"
+    Then the user response status code is 200
+    And the user has name "Queen Amidala" and email padme@naboo.org
+
+  Scenario: client deletes user
+    Given a user named "Jar Jar" with email jarjar@naboo.org exists
+    When the client deletes the user
+    Then the user response status code is 204
+    When the client tries to retrieve the deleted user by id
+    Then the user response status code is 404
+
+  Scenario: client cannot create duplicate email
+    Given a user named "Qui-Gon" with email quigon@jedi.org exists
+    When the client tries to create a user named "Qui-Gon Clone" with email quigon@jedi.org
+    Then the user response status code is 400
+Task 4.4: Implement Step Definitions
+
+Note src/test/java/ro/unibuc/prodeng/e2e/CucumberSpringConfiguration.java:
+
+package ro.unibuc.prodeng.e2e;
+
+import io.cucumber.spring.CucumberContextConfiguration;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@CucumberContextConfiguration
+@SpringBootTest(classes = CucumberSpringConfiguration.class)
+public class CucumberSpringConfiguration {
+   // Empty configuration - we don't need Spring context for E2E tests
+   // since we're calling an already running server via REST
+}
+Create src/test/java/ro/unibuc/prodeng/e2e/steps/UserSteps.java:
+
+package ro.unibuc.prodeng.e2e.steps;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.cucumber.java.After;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
+import org.springframework.http.*;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
+import ro.unibuc.prodeng.request.ChangeNameRequest;
+import ro.unibuc.prodeng.request.CreateUserRequest;
+import ro.unibuc.prodeng.response.UserResponse;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+
+public class UserSteps {
+
+   private static final String BASE_URL = "http://localhost:8080";
+
+   private final RestTemplate restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory());
+   private final ObjectMapper objectMapper = new ObjectMapper();
+
+   private ResponseEntity<String> latestResponse;
+   private final List<String> createdUserIds = new ArrayList<>();
+   private String lastCreatedUserId;
+   private UserResponse lastRetrievedUser;
+
+   @After
+   public void cleanup() {
+      // Clean up users created during tests
+      for (String userId : createdUserIds) {
+         try {
+            restTemplate.delete(BASE_URL + "/api/users/" + userId);
+         } catch (Exception e) {
+            // Ignore errors during cleanup
+         }
+      }
+      createdUserIds.clear();
+   }
+
+   @Given("a user named {string} with email {word} exists")
+   public void createUserForTest(String name, String email) throws Exception {
+      CreateUserRequest request = new CreateUserRequest(name, email);
+      HttpHeaders headers = new HttpHeaders();
+      headers.setContentType(MediaType.APPLICATION_JSON);
+      HttpEntity<CreateUserRequest> entity = new HttpEntity<>(request, headers);
+
+      ResponseEntity<String> response = restTemplate.postForEntity(BASE_URL + "/api/users", entity, String.class);
+      UserResponse user = objectMapper.readValue(response.getBody(), UserResponse.class);
+      createdUserIds.add(user.id());
+      lastCreatedUserId = user.id();
+   }
+
+   @When("the client creates a user named {string} with email {word}")
+   public void createUser(String name, String email) throws Exception {
+      CreateUserRequest request = new CreateUserRequest(name, email);
+      HttpHeaders headers = new HttpHeaders();
+      headers.setContentType(MediaType.APPLICATION_JSON);
+      HttpEntity<CreateUserRequest> entity = new HttpEntity<>(request, headers);
+
+      latestResponse = restTemplate.postForEntity(BASE_URL + "/api/users", entity, String.class);
+      UserResponse user = objectMapper.readValue(latestResponse.getBody(), UserResponse.class);
+      createdUserIds.add(user.id());
+      lastCreatedUserId = user.id();
+   }
+
+   @When("the client tries to create a user named {string} with email {word}")
+   public void tryCreateUser(String name, String email) {
+      CreateUserRequest request = new CreateUserRequest(name, email);
+      HttpHeaders headers = new HttpHeaders();
+      headers.setContentType(MediaType.APPLICATION_JSON);
+      HttpEntity<CreateUserRequest> entity = new HttpEntity<>(request, headers);
+
+      try {
+         latestResponse = restTemplate.postForEntity(BASE_URL + "/api/users", entity, String.class);
+      } catch (HttpClientErrorException e) {
+         latestResponse = ResponseEntity.status(e.getStatusCode()).body(e.getResponseBodyAsString());
+      }
+   }
+
+   @When("the client retrieves all users")
+   public void retrieveAllUsers() {
+      latestResponse = restTemplate.getForEntity(BASE_URL + "/api/users", String.class);
+   }
+
+   @When("the client retrieves the user by id")
+   public void retrieveUserById() throws Exception {
+      latestResponse = restTemplate.getForEntity(BASE_URL + "/api/users/" + lastCreatedUserId, String.class);
+      lastRetrievedUser = objectMapper.readValue(latestResponse.getBody(), UserResponse.class);
+   }
+
+   @When("the client retrieves the user by email {word}")
+   public void retrieveUserByEmail(String email) throws Exception {
+      latestResponse = restTemplate.getForEntity(BASE_URL + "/api/users/by-email?email=" + email, String.class);
+      lastRetrievedUser = objectMapper.readValue(latestResponse.getBody(), UserResponse.class);
+   }
+
+   @When("the client changes the user name to {string}")
+   public void changeUserName(String newName) throws Exception {
+      ChangeNameRequest request = new ChangeNameRequest(newName);
+      HttpHeaders headers = new HttpHeaders();
+      headers.setContentType(MediaType.APPLICATION_JSON);
+      HttpEntity<ChangeNameRequest> entity = new HttpEntity<>(request, headers);
+
+      latestResponse = restTemplate.exchange(BASE_URL + "/api/users/" + lastCreatedUserId + "/name",
+              HttpMethod.PATCH, entity, String.class);
+      lastRetrievedUser = objectMapper.readValue(latestResponse.getBody(), UserResponse.class);
+   }
+
+   @When("the client deletes the user")
+   public void deleteUser() {
+      latestResponse = restTemplate.exchange(BASE_URL + "/api/users/" + lastCreatedUserId,
+              HttpMethod.DELETE, null, String.class);
+   }
+
+   @When("the client tries to retrieve the deleted user by id")
+   public void tryRetrieveDeletedUser() {
+      try {
+         latestResponse = restTemplate.getForEntity(BASE_URL + "/api/users/" + lastCreatedUserId, String.class);
+      } catch (HttpClientErrorException e) {
+         latestResponse = ResponseEntity.status(e.getStatusCode()).body(e.getResponseBodyAsString());
+      }
+   }
+
+   @Then("the user response status code is {int}")
+   public void verifyUserResponseStatusCode(int statusCode) {
+      assertThat("status code is incorrect", latestResponse.getStatusCode().value(), is(statusCode));
+   }
+
+   @Then("the client can see at least {int} users")
+   public void verifyUserCount(int minCount) throws Exception {
+      List<UserResponse> users = objectMapper.readValue(latestResponse.getBody(), new TypeReference<List<UserResponse>>() {});
+      assertThat("user count is less than expected", users.size(), greaterThanOrEqualTo(minCount));
+   }
+
+   @Then("the user has name {string} and email {word}")
+   public void verifyUserDetails(String name, String email) {
+      assertThat("user name is incorrect", lastRetrievedUser.name(), is(name));
+      assertThat("user email is incorrect", lastRetrievedUser.email(), is(email));
+   }
+}
+Task 4.5: Run newly added Cucumber Tests
+
+# Run Cucumber tests
+./gradlew testE2E
+Part 5: Performance Testing
+
+JMeter is a powerful tool for load testing and performance measurement. It allows you to simulate multiple users sending requests to an application and analyze how your service performs under load.
+
+Through JMeter, tests are defined as a series of requests (samplers) that can be configured to run concurrently (thread groups) and with various parameters (timers, assertions). JMeter provides real-time results and detailed reports to help identify performance bottlenecks.
+
+Tests in JMeter are defined via an user interface which does not require coding knowledge, then saved as XML files. Other performance testing tools use different approaches for writing tests (such as Gatling, where performance tests are written as Java code).
+
+You can use any tool you are familiar with or you find more intuitive.
+
+Task 5.1: Installing JMeter
+
+Warning: JMeter does not work well inside Codespaces. It will need to be set up locally, but can run either against a local application instance or against one in Codespaces.
+Option 1: Download
+
+Go to https://jmeter.apache.org/download_jmeter.cgi
+Download the latest binary
+Extract and run bin/jmeter (or jmeter.bat on Windows)
+Option 2: Homebrew (Mac)
+
+brew install jmeter
+jmeter
+Option 3: Package Manager (Linux)
+
+sudo apt install jmeter  # Ubuntu/Debian
+Task 5.2: JMeter Terminology
+
+Understanding key components:
+
+Test Plan: Root element - contains everything
+
+Thread Group: Simulates users
+
+Number of threads (users)
+Ramp-up period (how long to start all users)
+Loop count (how many times each user repeats)
+Samplers: Requests to test
+
+HTTP Request
+Listeners: Collect and display results
+
+View Results Tree
+Summary Report
+Aggregate Report
+Graph Results
+Assertions: Validate responses
+
+Response code
+Response time
+Response content
+Timers: Add delays between requests
+
+Constant Timer
+Gaussian Random Timer
+Uniform Random Timer
+Task 5.3: Create Your First Performance Test
+
+Scenario: Test user creation endpoint
+
+Step 1: Start your application
+
+./gradlew bootRun
+Step 2: Open JMeter
+
+jmeter
+Step 3: Create Test Plan
+
+Right-click on "Test Plan" → Add → Threads (Users) → Thread Group
+
+Configure Thread Group:
+
+Number of Threads: 10 (10 concurrent users)
+Ramp-Up Period: 10 (start 1 user per second)
+Loop Count: 5 (each user makes 5 requests)
+Total requests: 10 users × 5 loops = 50 requests
+Right-click Thread Group → Add → Sampler → HTTP Request
+
+Configure HTTP Request:
+
+Name: Create User Request
+Protocol: http
+Server Name: localhost (or, if you're using Codespaces, get the hostname from the Ports tab or via echo "$CODESPACE_NAME-8080.app.github.dev")
+Port: 8080 (if using Codespaces, do NOT set. It will be contained in the URL obtained above, which will automatically forward to this port)
+HTTP Request: POST
+Path: /api/users
+Redirect Automatically instead of the default Follow Redirects
+Body Data:
+{
+  "name": "Test User ${__Random(1,10000)}",
+  "email": "user${__Random(1,10000)}@example.com"
+}
+Right-click HTTP Request → Add → Config Element → HTTP Header Manager
+
+Add header:
+
+Name: Content-Type
+Value: application/json
+Warning: If you run your service in a Github codespace, you need to authenticate your request as described here. Get the Github token from the codespace: echo $GITHUB_TOKEN, then similarly add it to the HTTP request in the X-Github-Token header.
+Right-click Thread Group → Add → Listener → Summary Report
+Right-click Thread Group → Add → Listener → View Results Tree
+Right-click Thread Group → Add → Listener → Graph Results
+Step 4: Run the test
+
+Click the green "Start" button (or Ctrl+R)
+Watch results in real-time
+View different listeners for different perspectives
+Task 5.4: Understanding JMeter Results
+
+Summary Report metrics:
+
+Metric	Description	Good Value
+Samples	Number of requests	Should match your config
+Average	Average response time (ms)	< 200ms for simple APIs
+Median	50% of requests faster than this	< 150ms
+90% Line	90% of requests faster than this	< 500ms
+95% Line	95% of requests faster than this	< 1000ms
+99% Line	99% of requests faster than this	< 2000ms
+Min	Fastest response	-
+Max	Slowest response	-
+Error %	% of failed requests	0%
+Throughput	Requests/second	Higher is better
+Received KB/sec	Data received	Depends on response size
+Sent KB/sec	Data sent	Depends on request size
+What to look for:
+
+✅ Good:
+
+Error rate: 0%
+Average response time: < 200ms
+95th percentile: < 1000ms
+Throughput: Stable and high
+❌ Bad:
+
+Error rate: > 1%
+Average response time: > 1000ms
+95th percentile: > 5000ms
+Throughput: Declining over time
+Task 5.5: Advanced JMeter Test Plan
+
+Create a realistic test with multiple scenarios:
+
+Test Plan
+├── Thread Group 1: Normal Users (70% load)
+│   ├── HTTP Request: GET /api/users
+│   ├── HTTP Request: GET /api/users/${userId}
+│   ├── Constant Timer: 1000ms (think time)
+│   └── View Results Tree
+│
+├── Thread Group 2: Creating Users (20% load)
+│   ├── HTTP Request: POST /api/users
+│   ├── JSON Extractor: Extract userId from response
+│   ├── Constant Timer: 2000ms
+│   └── Summary Report
+│
+├── Thread Group 3: Heavy Users (10% load)
+│   ├── HTTP Request: GET /api/users (all users)
+│   ├── Loop through results
+│   ├── HTTP Request: GET each user detail
+│   └── Aggregate Report
+│
+└── Global Listeners
+    ├── Summary Report
+    ├── Response Time Graph
+    └── Active Threads Over Time
+Task 5.6: Example Testing for Different Scenarios
+
+Scenario 1: Load Testing
+
+Simulate normal expected load
+Config: 50 users, ramp-up 30s, loop 10 times
+Goal: Verify system handles normal load
+Success: Error rate < 1%, response time < 500ms
+Scenario 2: Stress Testing
+
+Push system beyond normal capacity
+Config: 500 users, ramp-up 60s, loop 5 times
+Goal: Find breaking point
+Success: Identify maximum capacity before failures
+Scenario 3: Spike Testing
+
+Sudden traffic increase
+Config: Start with 10 users, jump to 200, back to 10
+Goal: Test recovery from spikes
+Success: System recovers without crashes
+Scenario 4: Endurance Testing
+
+Sustained load over time
+Config: 100 users, continuous for 30 minutes
+Goal: Find memory leaks, resource exhaustion
+Success: Stable performance over time
+Homework Assignment
+
+Requirements
+
+By the end of this lab cycle, your project must have:
+
+One integration test per feature / team member
+
+Verification of database state
+At least one performance test plan per team member
+
+JMeter (or equivalent) test plan created
+At least one complete E2E test (optional)
+
+Cucumber feature file with scenarios
+Step definitions implemented
+Tests passing
+HTML report generated
+Deliverables
+
+ Integration tests passing (./gradlew testIT)
+ Performance test plans committed and functional (IE .jmx)
+ Test reports generated and accessible
+Useful Resources
+
+Integration Testing
+
+Spring Boot Testing Guide
+Testcontainers Documentation
+Testing with MockMvc
+BDD and Cucumber
+
+Cucumber Documentation
+Cucumber with Spring Boot
+Gherkin Reference
+Writing Good Gherkin
+Performance Testing
+
+JMeter Documentation
+JMeter Best Practices
+Performance Testing Tutorial
+Load Testing Guide
+Testing Strategy
+
+Test Pyramid
+Testing Best Practices
+Effective Testing Strategies
+
+
+Lab 6 - Continuous Integration with Jenkins
+
+Introduction
+
+Welcome to Lab 6! In the previous labs, you built your application, wrote unit tests, integration tests, and performance tests. Your code works and is well-tested locally. But what happens when multiple team members push code changes throughout the day? How do you ensure that every change builds correctly, passes all tests, and produces a deployable artifact?
+
+This is where Continuous Integration (CI) comes in. In this lab, you'll set up Jenkins as your CI server, automate your build process, implement semantic versioning with Git tags, and publish Docker images to Docker Hub. By the end, you'll have an automated pipeline that builds, tests, and publishes your application every time code changes are pushed.
+
+For this lab, create a new branch named jenkins and push it to remote. All changes should be done on this branch.
+
+git checkout main && git pull origin main
+git checkout -b jenkins
+git push origin jenkins
+Objectives
+
+Understand Continuous Integration principles and benefits
+Install and configure Jenkins in Docker
+Create and run a freestyle build job
+Implement semantic versioning with Git tags
+Build and publish Docker images to Docker Hub
+Write a Jenkinsfile for pipeline-as-code
+Set up an Organization Folder for automatic pipeline discovery
+Prerequisites
+
+Completed Labs 1-5 (working application with tests)
+Docker installed and running
+GitHub repository with your application
+Docker Hub account (free tier)
+Part 1: Understanding Continuous Integration
+
+Task 1.1: What is Continuous Integration?
+
+Continuous Integration (CI) is a development practice where team members integrate their code changes into a shared repository frequently — ideally several times a day. Each integration is verified by an automated build and test process to detect problems early.
+
+Without CI:
+
+Developer A pushes code on Monday
+Developer B pushes code on Friday
+Merge conflicts, broken builds, and integration bugs discovered late
+Hours spent debugging integration issues
+With CI:
+
+Developer A pushes code → CI builds & tests → ✅ Passes → Merged
+Developer B pushes code → CI builds & tests → ❌ Fails → Fix immediately
+Problems caught within minutes, not days
+Key Principles:
+
+Maintain a single source repository — all code lives in one place (your GitHub repo)
+Automate the build — no manual steps to compile and package
+Make the build self-testing — unit and integration tests run automatically
+Everyone commits frequently — small, frequent changes reduce risk
+Every commit triggers a build — immediate feedback on every change
+Fix broken builds immediately — a broken build is the team's top priority
+Keep the build fast — feedback should come in minutes, not hours
+Benefits of CI:
+
+Benefit	Without CI	With CI
+Bug detection	Found days/weeks later	Found in minutes
+Integration issues	Painful merge conflicts	Small, manageable merges
+Build reliability	"Works on my machine"	Consistent, reproducible builds
+Team confidence	Afraid to merge	Merge with confidence
+Release readiness	Weeks of stabilization	Always deployable
+Task 1.2: CI Pipeline Stages
+
+A typical CI pipeline follows these stages:
+
+┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+│  Source  │───>│  Build   │───>│   Test   │───>│ Package  │───>│ Publish  │
+│  (Git)   │    │(Compile) │    │  (Unit)  │    │ (Docker) │    │(Registry)│
+└──────────┘    └──────────┘    └──────────┘    └──────────┘    └──────────┘
+Source — Developer pushes code to Git. CI server detects the change.
+Build — The project is compiled. Dependencies are resolved.
+Test — Unit tests run. If any test fails, the pipeline stops.
+Package — The application is packaged into a deployable artifact (Docker image).
+Publish — The Docker image is pushed to a registry (Docker Hub).
+Task 1.3: What is Jenkins?
+
+Jenkins is the most widely-used open-source automation server. It provides hundreds of plugins to support building, deploying, and automating any project.
+
+Key concepts:
+
+Concept	Description
+Job	A task Jenkins executes (build, test, deploy). Also called a "project".
+Build	A single execution of a job. Each build has a number and a result (success/failure).
+Pipeline	A series of stages defined in code (Jenkinsfile).
+Freestyle Project	A simple, UI-configured job. Good for getting started.
+Pipeline Project	A code-defined job using a Jenkinsfile. Better for complex workflows.
+Workspace	The directory where Jenkins checks out code and runs builds.
+Plugin	An extension that adds functionality (Git, Docker, Gradle, etc.).
+Freestyle vs Pipeline:
+
+Aspect	Freestyle Project	Pipeline (Jenkinsfile)
+Configuration	Through Jenkins web UI	Written as code in repository
+Version control	Not version controlled	Version controlled with your code
+Complexity	Simple, limited	Supports complex workflows
+Reusability	Must be recreated manually	Portable across Jenkins instances
+Code review	Not possible	Can be reviewed in PRs
+Best for	Quick prototyping, simple builds	Production CI/CD pipelines
+We'll start with a Freestyle project to understand the basics, then migrate to a Jenkinsfile.
+
+Part 2: Jenkins Setup
+
+Task 2.1: Understanding the Jenkins Container
+
+Jenkins is already configured in your project's docker-compose.yml. Let's understand the configuration:
+
+jenkins:
+  image: jenkins/jenkins
+  ports:
+    - 8082:8080       # Jenkins web UI
+    - 50000:50000     # Agent communication port
+  restart: on-failure
+  volumes:
+    - type: bind
+      source: ${JENKINS_CONFIG_ROOT:-/workspaces/jenkins_config}
+      target: /var/jenkins_home                                    # Persist Jenkins data
+    - /var/run/docker.sock:/var/run/docker.sock         # Allow Jenkins to use host Docker
+    - /usr/bin/docker:/usr/bin/docker                   # Docker CLI binary
+    - ./Dockerfile:/Dockerfile                          # Access to Dockerfile
+    - /usr/libexec/docker/cli-plugins/docker-compose:/usr/libexec/docker/cli-plugins/docker-compose
+  profiles:
+    - "prod-eng-service"
+  user: 0:0           # Run as root (needed for Docker socket access)
+Key volume mounts explained:
+
+**jenkins_config:/var/jenkins_home** — Persists Jenkins configuration, jobs, and plugins between container restarts. Without this, you'd lose everything when the container stops. The path defaults to /workspaces/jenkins_config (for Codespaces) and can be overridden via the JENKINS_CONFIG_ROOT environment variable.
+**/var/run/docker.sock** — The Docker socket. This allows Jenkins (running inside a container) to communicate with the host's Docker daemon and build/run Docker images. This is called "Docker-in-Docker" (DinD) via socket mounting.
+**/usr/bin/docker** — Makes the Docker CLI available inside the Jenkins container.
+**./Dockerfile:/Dockerfile** — Makes your application's Dockerfile accessible to Jenkins for building images.
+Task 2.2: Starting Jenkins
+
+Before starting Jenkins, you need a local Docker image for your service:
+
+./build.sh
+./start.sh
+Running locally (outside Codespaces): The default Jenkins home path (/workspaces/jenkins_config) only exists in Codespaces. When running on your own machine, pass the JENKINS_CONFIG_ROOT variable so Jenkins data is stored in your project directory:
+
+./build.sh
+mkdir -p jenkins_config
+JENKINS_CONFIG_ROOT=$(pwd)/jenkins_config ./start.sh
+Apple Silicon (M1/M2/M3) Macs — Docker inside Jenkins: The docker-compose.yml bind-mounts /usr/bin/docker and the Docker Compose plugin from the host. These are macOS (darwin) binaries and cannot run inside the Linux-based Jenkins container, so Docker commands in Jenkins jobs will fail with "Permission denied".
+
+After starting Jenkins, install a native Docker CLI inside the container:
+
+docker exec service-jenkins-1 bash -c "curl -fsSL https://download.docker.com/linux/static/stable/\$(uname -m)/docker-27.5.1.tgz | tar xz --strip-components=1 -C /usr/local/bin docker/docker"
+This downloads a native Linux Docker binary to /usr/local/bin/docker, which takes precedence in PATH over the broken macOS binary mounted at /usr/bin/docker. You need to re-run this command if you recreate the container (docker compose down + up), but not after a simple restart.
+Verify Jenkins is running:
+
+docker ps | grep jenkins
+You should see a container with the Jenkins image mapping port 8082 to 8080.
+
+Exercise:
+
+Run docker ps and identify all running containers. Note how Jenkins, your application, and MongoDB are all running together through Docker Compose profiles.
+
+Task 2.3: First Time Setup
+
+After starting the Jenkins container, there is a first-time setup wizard to activate the Jenkins server.
+
+Steps:
+
+Access Jenkins UI:
+In Codespaces: go to the PORTS tab, find port 8082, and click the globe icon to open in browser
+Locally: navigate to http://localhost:8082
+Unlock Jenkins:
+The web page will prompt for an initial admin password
+Retrieve it by running: docker exec service-jenkins-1 cat /var/jenkins_home/secrets/initialAdminPassword
+Copy and paste the password into the web page
+Install plugins:
+Select "Install suggested plugins"
+Wait for all plugins to finish installing (this may take a few minutes)
+The suggested plugins include everything we need: Git, Pipeline, Credentials, etc.
+Skip admin user creation:
+Click "Skip and continue as admin"
+You can reuse the initial admin password for future logins
+Configure Jenkins URL:
+Leave the Jenkins URL as the default value
+Click "Save and Finish" → "Start using Jenkins"
+Congratulations! You now have a working Jenkins server.
+
+Task 2.4: Configure Build Tools
+
+Jenkins needs to know about the build tools your project uses. We need to configure Gradle and JDK.
+
+Why configure tools in Jenkins? Jenkins runs builds inside its own container, which doesn't have Gradle or JDK pre-installed. By configuring these tools, Jenkins will automatically download and install them when a job first needs them.
+
+Configure Gradle:
+
+Go to "Manage Jenkins" (top-right gear icon, or append /manage to the URL) → "Tools"
+Scroll to "Gradle installations" → Click "Add Gradle"
+Configure:
+Name: gradle-8 (this name will be referenced in job configurations)
+Version: Gradle 8.13
+Install automatically: Leave checked
+Configure JDK:
+
+Still in "Tools", scroll to "JDK installations" → Click "Add JDK"
+Configure:
+Name: jdk21
+Install automatically: Check this box
+Click "Add Installer" → Select "Extract .zip/.tar.gz"
+Download URL: https://cdn.azul.com/zulu/bin/zulu21.40.17-ca-jdk21.0.6-linux_x64.tar.gz
+Subdirectory of extracted archive: zulu21.40.17-ca-jdk21.0.6-linux_x64
+Click "Save" at the bottom of the page
+Apple Silicon (M1/M2/M3) users: The URL above is for x86_64 Linux and will not work if your Jenkins container runs on ARM64. Use the aarch64 variant instead:
+
+Download URL: https://cdn.azul.com/zulu/bin/zulu21.40.17-ca-jdk21.0.6-linux_aarch64.tar.gz
+Subdirectory of extracted archive: zulu21.40.17-ca-jdk21.0.6-linux_aarch64
+Note: Jenkins will download and install these tools the first time a job uses them. The first build will take longer because of this one-time setup.
+Part 3: Creating Your First Jenkins Job
+
+Task 3.1: Create a Folder and Freestyle Project
+
+Why use folders? Folders help organize jobs, especially when you have multiple projects or teams. They work like directories in a file system.
+
+Steps:
+
+Go to Jenkins Dashboard
+Click "New Item"
+Enter name ProductionEngineering, select "Folder", click "OK"
+Save with default settings
+Inside the folder, click "New Item" again
+Enter name build-application, select "Freestyle project", click "OK"
+Task 3.2: Configure Source Code Management
+
+In the build-application job configuration:
+
+Scroll to "Source Code Management"
+Select "Git"
+Configure:
+Repository URL: https://github.com/YOUR-ORG/service.git (replace with your fork's URL)
+Branches to build: Change */master to */jenkins
+What this does: Jenkins will clone your repository and check out the jenkins branch before every build. This is how Jenkins gets your latest code.
+
+Task 3.3: Add Build Steps
+
+Still in the job configuration:
+
+Scroll to "Build Steps"
+Click "Add build step" → "Invoke Gradle script"
+Configure:
+Select "Invoke Gradle" (not "Use Gradle Wrapper")
+Gradle Version: Select gradle-8 (the one you configured earlier)
+Tasks: clean build
+What clean build does:
+
+clean — Removes previous build artifacts (ensures a fresh build)
+build — Compiles code, runs unit tests, and packages the application into a JAR file
+Click "Save"
+Task 3.4: Run and Verify the Build
+
+Click "Build Now" in the left sidebar
+A new build appears in the "Build History" section (bottom-left)
+Click on the build number (e.g., #1) to see details
+Click "Console Output" to see the full build log
+Expected output (first build):
+
+The first build takes several minutes because Jenkins is:
+
+Downloading and installing Gradle 8.13
+Downloading and installing JDK 21
+Cloning your repository
+Downloading all Gradle dependencies
+Compiling your code
+Running unit tests
+Packaging the JAR
+The console output should end with:
+
+BUILD SUCCESSFUL in Xs
+...
+Finished: SUCCESS
+Exercise:
+
+Read through the console output to understand what Jenkins did
+Find where Gradle was installed
+Find where your tests ran and how many passed
+Trigger a second build — notice how much faster it is (tools and dependencies are cached)
+Troubleshooting: Common Build Failures (Click to expand)
+
+Repository not found:
+
+Verify the repository URL is correct
+For private repos, you'll need to add credentials (covered in Part 6)
+Branch not found:
+
+Ensure you've pushed the jenkins branch: git push origin jenkins
+Check that the branch name matches exactly (case-sensitive)
+Gradle build fails:
+
+Check console output for specific error messages
+Ensure your code compiles locally with ./gradlew clean build
+Try clean build -x test to skip tests temporarily
+Out of memory:
+
+Add to Jenkins job: Build Environment → Inject environment variables → GRADLE_OPTS=-Xmx2048m
+Part 4: Docker Image Versioning
+
+Task 4.1: Understanding Semantic Versioning
+
+Before we build Docker images, we need a versioning strategy. Semantic Versioning (SemVer) is the industry standard format: MAJOR.MINOR.PATCH.
+
+    1.2.3
+    │ │ │
+    │ │ └── PATCH: Bug fixes, backwards compatible
+    │ └──── MINOR: New features, backwards compatible
+    └────── MAJOR: Breaking changes
+When to increment each number:
+
+Version Change	When	Example
+MAJOR (1.0.0 → 2.0.0)	Breaking API changes	Removing an endpoint, changing request format
+MINOR (1.0.0 → 1.1.0)	New features, backwards compatible	Adding a new endpoint
+PATCH (1.0.0 → 1.0.1)	Bug fixes, backwards compatible	Fixing a null pointer exception
+Real-world examples:
+
+1.0.0 → Initial release
+1.1.0 → Added search functionality
+1.1.1 → Fixed search returning duplicates
+2.0.0 → Redesigned API (breaking change)
+Task 4.2: Creating Git Tags
+
+Git tags mark specific commits with a version number. They act as release markers in your repository.
+
+Create your first tag:
+
+git tag 1.0.0
+git push --tags
+Verify the tag:
+
+# List all tags
+git tag
+
+# Show tag details
+git show 1.0.0
+You should also see 1.0.0 under "Tags" in your GitHub repository page.
+
+Exercise:
+
+Navigate to your repository on GitHub. Click on "Tags" (next to "Branches" dropdown). Verify that 1.0.0 appears. Click on it to see which commit it points to.
+
+Task 4.3: Automated Version Bumping in Jenkins
+
+Now let's configure Jenkins to automatically determine the next version and build a Docker image with that tag.
+
+Go to your build-application job → "Configure" → "Build Steps" → "Add build step" → "Execute shell":
+
+# Fetch all tags from remote
+git fetch --tags
+
+# Extract version components from the latest tag
+# sort -V sorts by version number (1.2.0 < 1.10.0)
+# tail -1 gets the last (highest) version
+export MAJOR_VERSION=$(git tag | sort -V | tail -1 | cut -d . -f 1)
+export MINOR_VERSION=$(git tag | sort -V | tail -1 | cut -d . -f 2)
+export PATCH_VERSION=$(git tag | sort -V | tail -1 | cut -d . -f 3)
+
+# Increment the minor version for the new build
+export NEW_MINOR_VERSION=$((MINOR_VERSION + 1))
+
+# Construct the new image version string
+export IMAGE_VERSION=$MAJOR_VERSION.$NEW_MINOR_VERSION.$PATCH_VERSION
+
+echo "Current tag: $MAJOR_VERSION.$MINOR_VERSION.$PATCH_VERSION"
+echo "Building image version: $IMAGE_VERSION"
+
+# Build a Docker image with the new version tag
+docker build -t prod-eng-img:$IMAGE_VERSION -f /Dockerfile .
+Line-by-line explanation:
+
+Line	Purpose
+git fetch --tags	Ensures Jenkins has all tags from the remote repository
+`git tag	sort -V
+cut -d . -f 1	Extracts the first field using . as delimiter (MAJOR)
+cut -d . -f 2	Extracts the second field (MINOR)
+cut -d . -f 3	Extracts the third field (PATCH)
+$((MINOR_VERSION + 1))	Bash arithmetic to increment the minor version
+docker build -t ... -f /Dockerfile .	Builds a Docker image with the version tag
+Run the Jenkins job again. It should finish with SUCCESS and produce a tagged Docker image.
+
+Part 5: Publishing to Docker Hub
+
+Task 5.1: Setting Up Docker Hub
+
+What is Docker Hub? Docker Hub is a cloud-based registry for Docker images — think of it as "GitHub for Docker images." You push images to Docker Hub so they can be pulled by any machine that needs to deploy your application.
+
+Steps:
+
+Go to hub.docker.com and create a free account
+Note your username (it will be used in image names)
+Optionally, create a repository named prod-eng-img (Docker Hub will create it automatically on first push if you don't)
+Task 5.2: Update the Build Script
+
+Modify the "Execute shell" build step in your Jenkins job to include Docker Hub publishing:
+
+git fetch --tags
+
+export MAJOR_VERSION=$(git tag | sort -V | tail -1 | cut -d . -f 1)
+export MINOR_VERSION=$(git tag | sort -V | tail -1 | cut -d . -f 2)
+export PATCH_VERSION=$(git tag | sort -V | tail -1 | cut -d . -f 3)
+export NEW_MINOR_VERSION=$((MINOR_VERSION + 1))
+export IMAGE_VERSION=$MAJOR_VERSION.$NEW_MINOR_VERSION.$PATCH_VERSION
+
+echo "Building image version: $IMAGE_VERSION"
+
+# Build with your Docker Hub username as prefix
+docker build -t YOUR_DOCKERHUB_USERNAME/prod-eng-img:$IMAGE_VERSION -f /Dockerfile .
+
+# Log in to Docker Hub
+# WARNING: Plain text password here is temporary — we fix this with Jenkinsfile credentials below
+docker login docker.io -u YOUR_DOCKERHUB_USERNAME -p YOUR_DOCKERHUB_PASSWORD
+
+# Push the image to Docker Hub
+docker push YOUR_DOCKERHUB_USERNAME/prod-eng-img:$IMAGE_VERSION
+Replace YOUR_DOCKERHUB_USERNAME and YOUR_DOCKERHUB_PASSWORD with your actual credentials.
+
+Security warning: Storing passwords in plain text in a build script is a bad practice. We'll fix this in Part 6 using Jenkins credentials management. This is temporary to demonstrate the concept.
+Task 5.3: Verify the Push
+
+Run the Jenkins job ("Build Now")docker
+Check the console output for successful login and push
+Go to Docker Hub and verify your image appears with the correct version tag
+Exercise:
+
+Browse your Docker Hub repository. Click on the image tag. Note the image size, architecture, and creation timestamp. These details help verify that the correct image was built and pushed.
+
+Part 6: Pipeline as Code with Jenkinsfile
+
+Task 6.1: Why Pipeline as Code?
+
+So far, you've configured your Jenkins job through the web UI. This has several drawbacks:
+
+Not version controlled — if someone changes the job configuration, there's no history
+Not reviewable — team members can't review changes via pull requests
+Not portable — recreating the job on another Jenkins instance requires manual work
+Not scalable — complex pipelines become unwieldy in the UI
+Pipeline as Code solves these problems by defining your entire CI pipeline in a Jenkinsfile — a text file committed to your repository alongside your source code.
+
+Benefits:
+
+Benefit	Description
+Version controlled	Pipeline changes are tracked in Git history
+Code reviewable	Pipeline changes go through the same PR process as code
+Portable	Move to a new Jenkins instance by simply scanning your repo
+Self-documenting	Anyone can read the Jenkinsfile to understand the CI process
+Branch-specific	Different branches can have different pipelines
+Task 6.2: Store Credentials Securely
+
+Before writing the Jenkinsfile, let's store sensitive credentials properly in Jenkins instead of hardcoding them.
+
+Go to "Manage Jenkins" → "Credentials" → "(global)" → "Add Credentials":
+
+1. Docker Hub credentials:
+
+Field	Value
+Kind	Username with password
+Username	Your Docker Hub username
+Password	Your Docker Hub password
+ID	docker_password
+Description	Docker Hub credentials
+2. GitHub Personal Access Token:
+
+First, generate a token:
+
+Go to GitHub Settings → Developer settings → Personal Access Tokens → Tokens (classic)
+Click "Generate new token (classic)"
+Select scopes: repo (full control of private repositories)
+Copy the generated token
+Then add it to Jenkins:
+
+Field	Value
+Kind	Username with password
+Username	Your GitHub username
+Password	Your GitHub token
+ID	github_token
+Description	GitHub Personal Access Token
+Why "Username with password" instead of "Secret text"? The GitHub Organization Folder plugin requires credentials of type "Username with password" to authenticate with the GitHub API when scanning for repositories. If you store the token as "Secret text", the Organization Folder configuration won't be able to select it in the credentials dropdown.
+Task 6.3: Understanding the Jenkinsfile
+
+The project includes a starter Jenkinsfile at infrastructure/Jenkinsfile. Let's expand it into a complete CI pipeline.
+
+Update the file with the following content:
+
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk21'
+        gradle 'gradle-8'
+    }
+
+    environment {
+        DOCKER_HUB_USERNAME = 'YOUR_DOCKERHUB_USERNAME'
+        DOCKER_PASSWORD = credentials('docker_password')
+        GITHUB_TOKEN = credentials('github_token')
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                sh './gradlew clean build'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh './gradlew test'
+            }
+        }
+
+        stage('Version & Tag') {
+            steps {
+                script {
+                    sh 'git fetch --tag'
+                    env.MAJOR_VERSION = sh(
+                        script: 'git tag | sort -V | tail -1 | cut -d . -f 1',
+                        returnStdout: true
+                    ).trim()
+                    env.MINOR_VERSION = sh(
+                        script: 'git tag | sort -V | tail -1 | cut -d . -f 2',
+                        returnStdout: true
+                    ).trim()
+                    env.PATCH_VERSION = sh(
+                        script: 'git tag | sort -V | tail -1 | cut -d . -f 3',
+                        returnStdout: true
+                    ).trim()
+                    def minorInt = env.MINOR_VERSION.toInteger()
+                    env.IMAGE_TAG = "${env.MAJOR_VERSION}.${minorInt + 1}.${env.PATCH_VERSION}"
+                    echo "Building version: ${env.IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $DOCKER_HUB_USERNAME/prod-eng-img:$IMAGE_TAG .'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                sh '''
+                    echo $DOCKER_PASSWORD_PSW | docker login -u $DOCKER_HUB_USERNAME --password-stdin
+                    docker push $DOCKER_HUB_USERNAME/prod-eng-img:$IMAGE_TAG
+                '''
+            }
+        }
+
+        stage('Tag Release') {
+            steps {
+                sh '''
+                    git tag $IMAGE_TAG
+                    git push https://$GITHUB_TOKEN_PSW@github.com/YOUR-ORG/service.git $IMAGE_TAG
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker logout'
+        }
+    }
+}
+Replace YOUR_DOCKERHUB_USERNAME and YOUR-ORG/service.git with your actual values.
+
+Let's break down each section:
+
+Jenkinsfile Section-by-Section Explanation (Click to expand)
+
+**pipeline { agent any }**
+
+pipeline — Defines this as a Declarative Pipeline (as opposed to Scripted Pipeline)
+agent any — Run the pipeline on any available Jenkins agent/executor
+**tools { ... }**
+
+Tells Jenkins which pre-configured tools this pipeline needs
+Jenkins will install them if not already available
+Names must match what you configured in "Manage Jenkins" → "Tools"
+**environment { ... }**
+
+Defines environment variables available to all stages
+credentials('docker_password') — Securely retrieves the credential you stored earlier
+credentials('github_token') — For "Username with password" credentials, Jenkins automatically creates three variables: GITHUB_TOKEN (as username:password), GITHUB_TOKEN_USR (username), and GITHUB_TOKEN_PSW (password/token). We use GITHUB_TOKEN_PSW in the git push URL.
+The credential values are masked in console output (shown as ****)
+**stage('Build') and stage('Test')**
+
+sh './gradlew clean build' — Runs Gradle to compile and package
+sh './gradlew test' — Runs unit tests
+If any stage fails, the pipeline stops and is marked as FAILED
+**stage('Version & Tag')**
+
+Uses script { } block for more complex Groovy logic
+returnStdout: true — Captures shell command output into a Groovy variable
+.trim() — Removes whitespace/newlines from captured output
+.toInteger() — Converts string to integer for arithmetic
+**stage('Build Docker Image')**
+
+Builds a Docker image using the version tag calculated in the previous stage
+$DOCKER_HUB_USERNAME/prod-eng-img:$IMAGE_TAG — Image name format: username/repository:tag
+Uses single quotes so shell variables are expanded by the shell, not Groovy
+**stage('Push to Docker Hub')**
+
+Uses single quotes (''') to avoid Groovy string interpolation of secrets (Jenkins warns about this as a security risk with double quotes)
+$DOCKER_PASSWORD_PSW — The password portion of the "Username with password" credential (not $DOCKER_PASSWORD, which contains username:password)
+--password-stdin — More secure than -p flag (doesn't show password in process list)
+docker push — Uploads the image to Docker Hub
+**stage('Tag Release')**
+
+Creates a new Git tag with the version number
+$GITHUB_TOKEN_PSW — The token portion of the "Username with password" credential
+Pushes the tag to GitHub using the personal access token for authentication
+This means every successful build creates a corresponding Git tag
+**post { always { ... } }**
+
+post — Actions to run after the pipeline completes
+always — Runs regardless of whether the pipeline succeeded or failed
+docker logout — Cleans up Docker Hub authentication
+Task 6.4: Commit and Push the Jenkinsfile
+
+git add infrastructure/Jenkinsfile
+git commit -m "[CI] Add Jenkinsfile with complete pipeline"
+git push origin jenkins
+Task 6.5: Create Organization Folder
+
+An Organization Folder is a Jenkins feature that automatically discovers repositories and branches that contain a Jenkinsfile. Instead of manually creating a job for each repository, Jenkins scans your GitHub organization and creates jobs automatically.
+
+Why use Organization Folders?
+
+Automatic discovery of new repositories and branches
+No manual job creation needed
+Jenkinsfile changes are picked up automatically
+Clean organization of jobs by repository and branch
+Steps:
+
+Go to Jenkins Dashboard → "New Item"
+Enter your GitHub organization name, select "Organization Folder", click "OK"
+Under "Projects" → Select "GitHub Organization"
+Configure:
+Owner: Your GitHub organization name
+Credentials: Select the github_token credential you created earlier
+Under "Project Recognizers" → "Script Path":
+Set to infrastructure/Jenkinsfile (this is where your Jenkinsfile lives)
+Click "Save"
+Filtering (if needed):
+
+If the organization has multiple repositories and you only want to scan your service repo:
+
+Under "Behaviours" → Click "Add" → "Filter by name (with regular expression)"
+In the repository filter regex: .*service (matches only repos containing "service")
+Click "Scan Organization Now" and verify:
+
+Your repository is discovered
+The jenkins branch is found
+A pipeline job is created and starts running
+Exercise:
+
+Watch the pipeline execute in the Jenkins Blue Ocean view (if available) or the classic pipeline view
+Click on each stage to see its console output
+Verify the Docker image appears on Docker Hub with the correct version tag
+Check your GitHub repository for the new Git tag
+Troubleshooting: Organization Folder Issues (Click to expand)
+
+"API rate limit exceeded" error: GitHub limits unauthenticated API calls. Ensure you added the github_token credential to the Organization Folder configuration, not just globally.
+
+Repository not discovered:
+
+Check the owner name matches your GitHub organization exactly (case-sensitive)
+Verify the token has repo scope
+Check the "Filter by name" regex isn't too restrictive
+Jenkinsfile not found:
+
+Verify the "Script Path" is set to infrastructure/Jenkinsfile
+Ensure the Jenkinsfile is pushed to the jenkins branch
+Pipeline fails at Docker stage:
+
+Verify Docker socket is mounted in docker-compose.yml
+Check Docker permissions: docker exec -it service-jenkins-1 docker ps
+Part 7: Verify the Complete Pipeline
+
+Task 7.1: End-to-End Verification
+
+After the Organization Folder scan completes, verify the full pipeline:
+
+Jenkins: Go to Organization Folder → your repository → jenkins branch. You should see a pipeline view with all stages: Build, Test, Version & Tag, Build Docker Image, Push to Docker Hub, Tag Release.
+Docker Hub: Go to Docker Hub. Your repository should show the new image tag.
+GitHub: Go to your repository → Tags. You should see a new tag matching the image version.
+Task 7.2: Test Automatic Builds
+
+Make a small code change to verify that pushing triggers a new build:
+
+# Make a small change (e.g., update a comment or add a health log)
+git add .
+git commit -m "[CI] Test automatic pipeline trigger"
+git push origin jenkins
+Then click "Scan Organization Now" in Jenkins (or wait for the periodic scan) to trigger discovery of the new commit. Verify:
+
+A new build starts automatically
+The version is incremented correctly
+A new image appears on Docker Hub
+A new tag appears on GitHub
+Exercise:
+
+Create two small commits and push them. Observe that each push results in:
+
+A new build in Jenkins
+A new version tag
+A new Docker Hub image
+This demonstrates the CI loop: code change → automatic build → automatic test → automatic publish.
+
+Homework Assignment
+
+Requirements
+
+By the next lab, each team must have:
+
+✅ Jenkins configured and running
+Gradle 8 and JDK 21 configured in Jenkins tools
+Credentials stored securely (Docker Hub + GitHub token)
+✅ Working Jenkinsfile pipeline
+Builds the application
+Runs unit tests
+Creates versioned Docker images
+Pushes images to Docker Hub
+Creates Git tags
+✅ Organization Folder configured
+Automatically discovers your repository
+Pipeline triggers on code changes
+✅ At least 3 successful builds
+Visible on Docker Hub as tagged images
+Corresponding tags visible on GitHub
+Deliverables
+
+Jenkinsfile committed to repository
+Docker Hub repository with tagged images
+GitHub repository with corresponding version tags
+Each team member understands the pipeline and can explain each stage
+Useful Resources
+
+Jenkins
+
+Jenkins User Documentation
+Pipeline Syntax Reference
+Using Credentials
+Organization Folders
+Docker
+
+Docker Hub Documentation
+Dockerfile Reference
+Docker Build Best Practices
+CI/CD
+
+Continuous Integration (Martin Fowler)
+Semantic Versioning
+CI/CD Best Practices
+Summary (Click to expand)
+
+In this lab, you learned:
+
+Continuous Integration principles and why CI matters
+Setting up and configuring Jenkins in Docker
+Creating freestyle jobs for quick prototyping
+Implementing semantic versioning with Git tags
+Building and publishing Docker images to Docker Hub
+Writing a Jenkinsfile for pipeline-as-code
+Using credentials management for secure secret handling
+Setting up Organization Folders for automatic pipeline discovery
+Your CI pipeline now automatically builds, tests, versions, and publishes your application on every code change.
+
+Next lab: Continuous Delivery — deploying your application with Docker Compose from the pipeline and introducing Kubernetes.
+
