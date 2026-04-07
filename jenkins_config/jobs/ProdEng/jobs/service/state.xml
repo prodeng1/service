@@ -1,0 +1,22 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<jenkins.branch.MultiBranchProject_-State plugin="branch-api@2.1280.v0d4e5b_b_460ef">
+  <sourceActions>
+    <entry>
+      <string>org.jenkinsci.plugins.github_branch_source.GitHubSCMNavigator::https://api.github.com::prodeng1::service</string>
+      <list>
+        <org.jenkinsci.plugins.github__branch__source.GitHubRepoMetadataAction plugin="github-branch-source@1967.vdea_d580c1a_b_a_"/>
+        <jenkins.scm.api.metadata.ObjectMetadataAction plugin="scm-api@728.vc30dcf7a_0df5">
+          <objectDescription>Example lab application</objectDescription>
+        </jenkins.scm.api.metadata.ObjectMetadataAction>
+        <org.jenkinsci.plugins.github__branch__source.GitHubLink plugin="github-branch-source@1967.vdea_d580c1a_b_a_">
+          <url>https://github.com/prodeng1/service</url>
+        </org.jenkinsci.plugins.github__branch__source.GitHubLink>
+        <org.jenkinsci.plugins.github__branch__source.GitHubDefaultBranch plugin="github-branch-source@1967.vdea_d580c1a_b_a_">
+          <repoOwner>prodeng1</repoOwner>
+          <repository>service</repository>
+          <defaultBranch>main</defaultBranch>
+        </org.jenkinsci.plugins.github__branch__source.GitHubDefaultBranch>
+      </list>
+    </entry>
+  </sourceActions>
+</jenkins.branch.MultiBranchProject_-State>

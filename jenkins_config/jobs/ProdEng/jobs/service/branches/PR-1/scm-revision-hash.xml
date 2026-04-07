@@ -1,0 +1,21 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<org.jenkinsci.plugins.github__branch__source.PullRequestSCMRevision plugin="github-branch-source@1967.vdea_d580c1a_b_a_">
+  <head class="org.jenkinsci.plugins.github_branch_source.PullRequestSCMHead">
+    <name>PR-1</name>
+    <merge>false</merge>
+    <number>1</number>
+    <target>
+      <name>main</name>
+    </target>
+    <sourceOwner>prodeng1</sourceOwner>
+    <sourceRepo>service</sourceRepo>
+    <sourceBranch>alex</sourceBranch>
+    <origin class="jenkins.scm.api.SCMHeadOrigin$Default" plugin="scm-api@728.vc30dcf7a_0df5"/>
+  </head>
+  <target class="jenkins.plugins.git.AbstractGitSCMSource$SCMRevisionImpl" plugin="git@5.10.1">
+    <head class="org.jenkinsci.plugins.github_branch_source.BranchSCMHead" reference="../../head/target"/>
+    <hash>4acfe090a36cccc2fa70bee49388d512c8f7ab06</hash>
+  </target>
+  <baseHash>4acfe090a36cccc2fa70bee49388d512c8f7ab06</baseHash>
+  <pullHash>ede01a107d7bcbdbd985d4a0006cea56d2a8d0c0</pullHash>
+</org.jenkinsci.plugins.github__branch__source.PullRequestSCMRevision>

@@ -1,0 +1,33 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<fingerprint>
+  <timestamp>2026-04-07 21:19:30.950 UTC</timestamp>
+  <md5sum>1ec3df7c0f81042acab7582037017dc9</md5sum>
+  <fileName>Credential id=github_token name=gabirelul/****** (GitHubbb)</fileName>
+  <usages>
+    <entry>
+      <string>ProdEng/service/jenkins</string>
+      <ranges>1-5</ranges>
+    </entry>
+    <entry>
+      <string>ProdEng/service/Stefan-Octavia</string>
+      <ranges>1-2</ranges>
+    </entry>
+    <entry>
+      <string>ProdEng/service-main/master</string>
+      <ranges>1</ranges>
+    </entry>
+    <entry>
+      <string>ProdEng/service/Cujbescu-Radu</string>
+      <ranges>1</ranges>
+    </entry>
+    <entry>
+      <string>ProdEng/service/main</string>
+      <ranges>1</ranges>
+    </entry>
+    <entry>
+      <string>ProdEng/service/PR-1</string>
+      <ranges>1-2</ranges>
+    </entry>
+  </usages>
+  <facets/>
+</fingerprint>

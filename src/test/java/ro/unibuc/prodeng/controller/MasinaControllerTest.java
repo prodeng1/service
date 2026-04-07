@@ -22,16 +22,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ro.unibuc.prodeng.exception.DuplicateMasinaException;
-import ro.unibuc.prodeng.repository.UserRepository;
 import ro.unibuc.prodeng.repository.MasinaRepository;
-import ro.unibuc.prodeng.repository.TodoRepository;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import ro.unibuc.prodeng.request.MasinaRequest;
 import ro.unibuc.prodeng.request.UpdateMasinaStatusRequest;
 import ro.unibuc.prodeng.response.MasinaResponse;
 import ro.unibuc.prodeng.service.MasinaService;
-import ro.unibuc.prodeng.service.TodoService;
-import ro.unibuc.prodeng.service.UserService;
 
 @WebMvcTest(MasinaController.class)
 public class MasinaControllerTest {
@@ -43,19 +39,7 @@ public class MasinaControllerTest {
         private MasinaService masinaService;
 
         @MockBean
-        private UserService userService;
-
-        @MockBean
-        private TodoService todoService;
-
-        @MockBean
-        private UserRepository userRepository;
-
-        @MockBean
         private MasinaRepository masinaRepository;
-
-        @MockBean
-        private TodoRepository todoRepository;
 
         @MockBean
         private MongoTemplate mongoTemplate;
