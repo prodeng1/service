@@ -3,7 +3,6 @@ package ro.unibuc.prodeng;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 
 import ro.unibuc.prodeng.repository.UserRepository;
 import ro.unibuc.prodeng.request.CreateTodoRequest;
@@ -14,7 +13,6 @@ import ro.unibuc.prodeng.service.UserService;
 import jakarta.annotation.PostConstruct;
 
 @SpringBootApplication
-@EnableMongoRepositories
 public class ProdEngApplication {
 
 	@Autowired
