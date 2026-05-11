@@ -46,3 +46,4 @@ out/
 *.zip
 *.tar.gz
 *.rar
+jenkins_config/tools/
