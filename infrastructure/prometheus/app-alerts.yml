@@ -6,6 +6,8 @@ groups:
         for: 10s
         labels:
           severity: warning
+          category: performance
+          alert_group: high-throughput
         annotations:
           summary: Increased info retrieval rate {{ $labels.value}} {{ $value }}
           description: "A container has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
@@ -15,6 +17,8 @@ groups:
         for: 10s
         labels:
           severity: critical
+          category: performance
+          alert_group: high-throughput
         annotations:
           summary: Increased info retrieval rate {{ $labels.value}} {{ $value }}
           description: "A container has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

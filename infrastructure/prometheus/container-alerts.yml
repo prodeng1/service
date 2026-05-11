@@ -6,6 +6,8 @@ groups:
       for: 0m
       labels:
         severity: warning
+        category: availability
+        alert_group: container-down
       annotations:
         summary: Application container down (instance {{ $labels.instance }})
         description: "Application container has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
@@ -15,6 +17,8 @@ groups:
       for: 0m
       labels:
         severity: critical
+        category: availability
+        alert_group: container-down
       annotations:
         summary: Application container down (instance {{ $labels.instance }})
         description: "Application container has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

@@ -5,24 +5,24 @@
   <fileName>Credential id=docker_password name=kerag/****** (Docker Hubbb)</fileName>
   <usages>
     <entry>
-      <string>ProdEng/service/jenkins</string>
-      <ranges>1-5</ranges>
-    </entry>
-    <entry>
       <string>ProdEng/service/Stefan-Octavia</string>
       <ranges>1-2</ranges>
+    </entry>
+    <entry>
+      <string>ProdEng/service/jenkins</string>
+      <ranges>1-6</ranges>
     </entry>
     <entry>
       <string>ProdEng/service/Cujbescu-Radu</string>
       <ranges>1</ranges>
     </entry>
     <entry>
-      <string>ProdEng/service/main</string>
-      <ranges>1</ranges>
-    </entry>
-    <entry>
       <string>ProdEng/service/PR-1</string>
       <ranges>1-2</ranges>
+    </entry>
+    <entry>
+      <string>ProdEng/service/main</string>
+      <ranges>1</ranges>
     </entry>
   </usages>
   <facets/>
