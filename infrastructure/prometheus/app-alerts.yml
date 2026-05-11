@@ -22,3 +22,33 @@ groups:
         annotations:
           summary: Increased info retrieval rate {{ $labels.value}} {{ $value }}
           description: "A container has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: ProdEngServiceDown
+        expr: up{job="spring-prod-eng-app"} < 2
+        for: 10s
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: ProdEng service is down
+          description: "Prometheus cannot scrape the Spring Boot application on job spring-prod-eng-app for more than 30 seconds."
+
+      - alert: AppointmentCreationLatencyHigh
+        expr: (http_server_requests_seconds_sum{method="POST",status="201",uri="/api/appointments"} / http_server_requests_seconds_count{method="POST",status="201",uri="/api/appointments"}) > 0.001
+        for: 10s
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: Appointment creation is too slow
+          description: "Appointment creation latency exceeded 200 ms in the last 5 minutes. Current value: {{ $value }} seconds."
+
+      - alert: AppointmentValidationErrorsDetected
+        expr: max_over_time(prod_eng_appointments_rejected_total[5m]) > 0
+        for: 10s
+        labels:
+          severity: warning
+          category: quality
+        annotations:
+          summary: Appointment validation errors were detected
+          description: "At least one invalid appointment request was rejected in the last 5 minutes. Current value: {{ $value }}."

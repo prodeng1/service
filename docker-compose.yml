@@ -15,7 +15,7 @@ services:
   jenkins:
     image: jenkins/jenkins
     ports:
-      - 8082:8080
+      - 8083:8080
       - 50000:50000
     restart: on-failure
     volumes:
@@ -112,6 +112,13 @@ services:
         loki-url: "http://loki:3100/loki/api/v1/push"
     profiles:
       - "monitoring"
+  mailpit:
+    image: axllent/mailpit:v1.22
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    profiles:
+      - "monitoring"
   grafana: # dashboard visualisation tool (metrics & logs)
     image: grafana/grafana:11.4.0
     volumes:
@@ -129,7 +136,7 @@ services:
     image: mtchavez/docker-wrk
     profiles:
       - "perf"
-    command: wrk -t4 -c10 -d300s http://prod-eng:8080/api/users
+    command: wrk -t4 -c10 -d300s http://prod-eng:8080/api/masini
     logging:
       driver: loki
       options:
@@ -144,3 +151,19 @@ services:
       driver: loki
       options:
         loki-url: "http://loki:3100/loki/api/v1/push"
+
+  wrk-injector-appointments-get:
+    image: mtchavez/docker-wrk
+    profiles:
+      - "perf"
+    volumes:
+      - ./:/data:ro
+    command: wrk -t4 -c50 -d60s --latency -s /data/performance/appointments-get.lua http://prod-eng:8080/api/appointments
+
+  wrk-injector-appointments-post:
+    image: mtchavez/docker-wrk
+    profiles:
+      - "perf"
+    volumes:
+      - ./:/data:ro
+    command: wrk -t2 -c10 -d45s --latency -s /data/performance/appointments-post.lua http://prod-eng:8080/api/appointments
