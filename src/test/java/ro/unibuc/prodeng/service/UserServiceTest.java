@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import ro.unibuc.prodeng.exception.EntityNotFoundException;
+import ro.unibuc.prodeng.metrics.ApplicationMetrics;
 import ro.unibuc.prodeng.model.UserEntity;
 import ro.unibuc.prodeng.repository.UserRepository;
 import ro.unibuc.prodeng.request.CreateUserRequest;
@@ -30,6 +31,9 @@ class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private ApplicationMetrics applicationMetrics;
 
     @InjectMocks
     private UserService userService;

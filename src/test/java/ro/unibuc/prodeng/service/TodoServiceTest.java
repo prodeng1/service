@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import ro.unibuc.prodeng.exception.EntityNotFoundException;
+import ro.unibuc.prodeng.metrics.ApplicationMetrics;
 import ro.unibuc.prodeng.model.TodoEntity;
 import ro.unibuc.prodeng.model.UserEntity;
 import ro.unibuc.prodeng.repository.TodoRepository;
@@ -36,6 +37,9 @@ class TodoServiceTest {
 
     @Mock
     private UserService userService;
+
+    @Mock
+    private ApplicationMetrics applicationMetrics;
 
     @InjectMocks
     private TodoService todoService;

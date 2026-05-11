@@ -44,7 +44,7 @@ NOTE: for a live demo, please check out [this youtube video](https://youtu.be/-9
     * ```./start_mongo_only.sh```
 * Run/debug your IntelliJ run configuration
 * Open in your browser:
-    * http://localhost:8080/api/users
+    * http://localhost:8082/api/users
 
 # Deploy and run the code locally as Docker instance
 
@@ -63,7 +63,7 @@ NOTE: for a live demo, please check out [this youtube video](https://youtu.be/-9
   a74b4cb2fb58   prod-eng-img      "java -jar /prod-eng…"   5 seconds ago   Up 4 seconds   0.0.0.0:5005->5005/tcp, [::]:5005->5005/tcp, 0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp       service-prod-eng-1
   ```
 * Open in your browser:
-    * http://localhost:8080/api/users
+    * http://localhost:8082/api/users
 * You can test other API endpoints using [requests.http](requests.http)
 * You can access the MongoDB Admin UI at:
   * http://localhost:8090

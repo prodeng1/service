@@ -60,7 +60,7 @@ class AppointmentControllerTest {
             "Duster",
             "B-123-XYZ",
             "Test drive",
-            LocalDateTime.of(2026, 4, 15, 10, 0),
+            LocalDateTime.of(2026, 5, 15, 10, 0),
             "REQUESTED",
             "Needs financing details");
 
@@ -91,7 +91,7 @@ class AppointmentControllerTest {
                 "Duster",
                 "B-123-XYZ",
                 "Test drive",
-                LocalDateTime.of(2026, 4, 15, 10, 0),
+                LocalDateTime.of(2026, 5, 15, 10, 0),
                 "Needs financing details");
 
         when(appointmentService.createAppointment(any(CreateAppointmentRequest.class))).thenReturn(appointment);

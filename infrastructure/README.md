@@ -14,7 +14,7 @@ docker plugin install grafana/loki-docker-driver:2.4.1 --alias loki --grant-all-
 ![Monitoring high level diagram](./docs/high-level-monitoring-diagram.png "Monitoring high level diagram")
 
 App Metrics
-- prom metrics [http://localhost:8080/actuator/prometheus)](http://localhost:8080/actuator/prometheus)
+- prom metrics [http://localhost:8082/actuator/prometheus)](http://localhost:8082/actuator/prometheus)
 
 cAdvisor (container metrics exporter)
 - UI [http://localhost:8081/containers](http://localhost:8081/containers)
@@ -32,8 +32,8 @@ Grafana
 * Plot metrics in Prometheus
   * Navigate to: http://localhost:9090
   * Invoke the application endpoints a couple of times so they start generating metrics:
-    * http://localhost:8080/api/users
-    * http://localhost:8080/info
+    * http://localhost:8082/api/users
+    * http://localhost:8082/info
   * Wait 15s (default scrape interval)
   * Paste `invocation_count_total{endpoint="api/users"}` and choose Execute and Graph
   * Paste `invocation_duration_seconds_max{endpoint="info"}` and choose Execute and Graph

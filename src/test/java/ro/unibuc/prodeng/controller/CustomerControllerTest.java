@@ -49,7 +49,7 @@ class CustomerControllerTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final CustomerResponse customer = new CustomerResponse("1", "John Doe", "john@example.com", "+40123456789");
+    private final CustomerResponse customer = new CustomerResponse("1", "John Test", "johntest@example.com", "+40123456789");
 
     @BeforeEach
     void setUp() {
@@ -65,12 +65,12 @@ class CustomerControllerTest {
         mockMvc.perform(get("/api/customers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].email", is("john@example.com")));
+                .andExpect(jsonPath("$[0].email", is("johntest@example.com")));
     }
 
     @Test
     void testCreateCustomer_returnsCreatedCustomer() throws Exception {
-        CreateCustomerRequest request = new CreateCustomerRequest("John Doe", "john@example.com", "+40123456789");
+        CreateCustomerRequest request = new CreateCustomerRequest("John Test", "johntest@example.com", "+40123456789");
         when(customerService.createCustomer(any(CreateCustomerRequest.class))).thenReturn(customer);
 
         mockMvc.perform(post("/api/customers")

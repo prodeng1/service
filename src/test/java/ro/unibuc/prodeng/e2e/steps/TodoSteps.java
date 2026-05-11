@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 
 public class TodoSteps {
 
-    private static final String BASE_URL = "http://localhost:8080";
+    private static final String BASE_URL = "http://localhost:8082";
 
     private final RestTemplate restTemplate = new RestTemplate(new HttpComponentsClientHttpRequestFactory());
     private final ObjectMapper objectMapper = new ObjectMapper();

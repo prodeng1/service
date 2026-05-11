@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import ro.unibuc.prodeng.metrics.ApplicationMetrics;
 import ro.unibuc.prodeng.model.UserEntity;
 import ro.unibuc.prodeng.repository.UserRepository;
 import ro.unibuc.prodeng.request.CreateUserRequest;
@@ -20,6 +21,9 @@ public class UserService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private ApplicationMetrics applicationMetrics;
+
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
                 .map(this::toResponse)
@@ -27,10 +31,13 @@ public class UserService {
     }
 
     public List<UserResponse> searchUsersByName(String nameQuery) {
+        long startTime = System.nanoTime();
         String normalizedQuery = normalizeName(nameQuery);
-        return userRepository.findByNameContainingIgnoreCase(normalizedQuery).stream()
+        List<UserResponse> users = userRepository.findByNameContainingIgnoreCase(normalizedQuery).stream()
                 .map(this::toResponse)
                 .toList();
+        applicationMetrics.recordUserSearch(users.size(), System.nanoTime() - startTime);
+        return users;
     }
 
     public UserResponse getUserById(String id) throws EntityNotFoundException {
@@ -57,6 +64,7 @@ public class UserService {
                 normalizedPhone
         );
         UserEntity saved = userRepository.save(user);
+        applicationMetrics.recordUserCreated();
         return toResponse(saved);
     }
 

@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import ro.unibuc.prodeng.exception.EntityNotFoundException;
+import ro.unibuc.prodeng.metrics.ApplicationMetrics;
 import ro.unibuc.prodeng.model.AppointmentEntity;
 import ro.unibuc.prodeng.repository.AppointmentRepository;
 import ro.unibuc.prodeng.request.CreateAppointmentRequest;
@@ -29,6 +30,9 @@ class AppointmentServiceTest {
 
     @Mock
     private AppointmentRepository appointmentRepository;
+
+    @Mock
+    private ApplicationMetrics applicationMetrics;
 
     @InjectMocks
     private AppointmentService appointmentService;

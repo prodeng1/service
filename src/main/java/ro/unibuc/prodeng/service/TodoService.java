@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import ro.unibuc.prodeng.metrics.ApplicationMetrics;
 import ro.unibuc.prodeng.model.TodoEntity;
 import ro.unibuc.prodeng.repository.TodoRepository;
 import ro.unibuc.prodeng.model.UserEntity;
@@ -23,12 +24,18 @@ public class TodoService {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private ApplicationMetrics applicationMetrics;
+
     public List<TodoResponse> getTodosByUserEmail(String email) throws EntityNotFoundException {
+        long startTime = System.nanoTime();
         UserEntity user = userService.getUserEntityByEmail(email);
         List<TodoEntity> todos = todoRepository.findByAssignedUserId(user.id());
-        return todos.stream()
+        List<TodoResponse> responses = todos.stream()
                 .map(todo -> toResponse(todo, user))
                 .toList();
+        applicationMetrics.recordTodoFetch(responses.size(), System.nanoTime() - startTime);
+        return responses;
     }
 
     public TodoResponse getTodoById(String id) throws EntityNotFoundException {
@@ -47,6 +54,7 @@ public class TodoService {
                 assignee.id()
         );
         TodoEntity saved = todoRepository.save(todo);
+        applicationMetrics.recordTodoCreated();
         return toResponse(saved, assignee);
     }
 
@@ -55,6 +63,7 @@ public class TodoService {
         TodoEntity updated = new TodoEntity(id, existing.description(), done, existing.assignedUserId());
         TodoEntity saved = todoRepository.save(updated);
         UserEntity assignee = userService.getUserEntityById(saved.assignedUserId());
+        applicationMetrics.recordTodoStatusChange(done);
         return toResponse(saved, assignee);
     }
 

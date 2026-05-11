@@ -3,12 +3,14 @@ package ro.unibuc.prodeng.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Duration;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import ro.unibuc.prodeng.exception.EntityNotFoundException;
+import ro.unibuc.prodeng.metrics.ApplicationMetrics;
 import ro.unibuc.prodeng.model.AppointmentEntity;
 import ro.unibuc.prodeng.repository.AppointmentRepository;
 import ro.unibuc.prodeng.request.CreateAppointmentRequest;
@@ -19,9 +21,13 @@ public class AppointmentService {
 
     private static final LocalTime OPENING_TIME = LocalTime.of(8, 0);
     private static final LocalTime CLOSING_TIME = LocalTime.of(18, 0);
+    private static final Duration APPOINTMENT_CREATION_DELAY = Duration.ofMillis(300);
 
     @Autowired
     private AppointmentRepository appointmentRepository;
+
+    @Autowired
+    private ApplicationMetrics applicationMetrics;
 
     public List<AppointmentResponse> getAllAppointments() {
         return appointmentRepository.findAllByOrderByAppointmentAtAsc().stream()
@@ -48,8 +54,14 @@ public class AppointmentService {
     }
 
     public AppointmentResponse createAppointment(CreateAppointmentRequest request) {
-        validateAppointmentSlot(request.appointmentAt());
-        validateDuplicateCustomerAppointment(request.customerEmail(), request.appointmentAt());
+        long startTime = System.nanoTime();
+        try {
+            validateAppointmentSlot(request.appointmentAt());
+            validateDuplicateCustomerAppointment(request.customerEmail(), request.appointmentAt());
+        } catch (IllegalArgumentException exception) {
+            applicationMetrics.recordAppointmentRejected(classifyAppointmentRejection(exception.getMessage()));
+            throw exception;
+        }
 
         AppointmentEntity appointment = new AppointmentEntity(
                 null,
@@ -64,7 +76,10 @@ public class AppointmentService {
                 "REQUESTED",
                 request.notes());
 
-        return toResponse(appointmentRepository.save(appointment));
+        simulateAppointmentCreationDelay();
+        AppointmentResponse response = toResponse(appointmentRepository.save(appointment));
+        applicationMetrics.recordAppointmentCreated(request.serviceType(), System.nanoTime() - startTime);
+        return response;
     }
 
     public AppointmentResponse updateStatus(String id, String newStatus) throws EntityNotFoundException {
@@ -84,7 +99,9 @@ public class AppointmentService {
                 newStatus,
                 existing.notes());
 
-        return toResponse(appointmentRepository.save(updated));
+        AppointmentResponse response = toResponse(appointmentRepository.save(updated));
+        applicationMetrics.recordAppointmentStatusUpdate(existing.status(), newStatus);
+        return response;
     }
 
     public AppointmentResponse updateNotes(String id, String notes) throws EntityNotFoundException {
@@ -144,6 +161,15 @@ public class AppointmentService {
         }
     }
 
+    private void simulateAppointmentCreationDelay() {
+        try {
+            Thread.sleep(APPOINTMENT_CREATION_DELAY.toMillis());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Appointment creation delay was interrupted", exception);
+        }
+    }
+
     private AppointmentResponse toResponse(AppointmentEntity appointment) {
         return new AppointmentResponse(
                 appointment.id(),
@@ -157,5 +183,15 @@ public class AppointmentService {
                 appointment.appointmentAt(),
                 appointment.status(),
                 appointment.notes());
+    }
+
+    private String classifyAppointmentRejection(String message) {
+        if (message.contains("between 08:00 and 18:00")) {
+            return "outside_working_hours";
+        }
+        if (message.contains("already has an appointment")) {
+            return "duplicate_slot";
+        }
+        return "validation_error";
     }
 }

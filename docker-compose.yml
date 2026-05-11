@@ -3,7 +3,7 @@ services:
     image: prod-eng-img
     build: .
     ports:
-      - 8080:8080
+      - 8082:8082
       # Port for debug
       - 5005:5005
     environment:
@@ -22,7 +22,7 @@ services:
       GITHUB_ORG_FOLDER: prodeng1-org
       GITHUB_CREDENTIALS_ID: github_credentials
     ports:
-      - 8082:8080
+      - 8083:8080
       - 50000:50000
     restart: on-failure
     volumes:
@@ -115,6 +115,13 @@ services:
         loki-url: "http://loki:3100/loki/api/v1/push"
     profiles:
       - "monitoring"
+  mailpit:
+    image: axllent/mailpit:v1.22
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    profiles:
+      - "monitoring"
   grafana: # dashboard visualisation tool (metrics & logs)
     image: grafana/grafana:11.4.0
     volumes:
@@ -132,7 +139,7 @@ services:
     image: mtchavez/docker-wrk
     profiles:
       - "perf"
-    command: wrk -t4 -c10 -d300s http://prod-eng:8080/api/users
+    command: wrk -t4 -c10 -d300s http://prod-eng:8082/api/users
     logging:
       driver: loki
       options:
@@ -142,7 +149,7 @@ services:
     image: mtchavez/docker-wrk
     profiles:
       - "perf"
-    command: wrk -t4 -c1000 -d5m --timeout 1s --latency http://prod-eng:8080/info
+    command: wrk -t4 -c1000 -d5m --timeout 1s --latency http://prod-eng:8082/info
     logging:
       driver: loki
       options:
@@ -153,11 +160,11 @@ services:
       - "perf"
     volumes:
       - ./:/data:ro
-    command: wrk -t4 -c50 -d60s --latency -s /data/performance/appointments-get.lua http://prod-eng:8080/api/appointments
+    command: wrk -t4 -c50 -d60s --latency -s /data/performance/appointments-get.lua http://prod-eng:8082/api/appointments
   wrk-injector-appointments-post:
     image: mtchavez/docker-wrk
     profiles:
       - "perf"
     volumes:
       - ./:/data:ro
-    command: wrk -t2 -c10 -d45s --latency -s /data/performance/appointments-post.lua http://prod-eng:8080/api/appointments
+    command: wrk -t2 -c10 -d45s --latency -s /data/performance/appointments-post.lua http://prod-eng:8082/api/appointments
